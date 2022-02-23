@@ -1,0 +1,79 @@
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Timeout: 60
+    Runtime: python3.9
+    Layers:
+      - arn:aws:lambda:eu-west-1:367899993810:layer:wiki-layer:6
+
+Resources:
+  GraphQLAPI:
+    Type: AWS::AppSync::GraphQLApi
+    Properties:
+      Name: "wiki api"
+      AuthenticationType: API_KEY
+
+  GraphQLAPIKey:
+    Type: AWS::AppSync::ApiKey
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+
+  GraphQLSchema:
+    Type: AWS::AppSync::GraphQLSchema
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      DefinitionS3Location: s3://schema-and-resolvers/schema.graphql
+
+  #########
+  # User #
+  ########
+
+  UserLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/GetUser/
+      Handler: handler.lambda_handler
+
+  UserDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: UserDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt UserLambda.Arn
+      ServiceRoleArn: !GetAtt UserDataRole.Arn
+
+  UserDataRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: appsync.amazonaws.com
+
+
+  UserDataPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: UserDataPolicy
+      Roles:
+        - !Ref UserDataRole
+      PolicyDocument:
+        Statement:
+          - Action: lambda:invokeFunction
+            Effect: Allow
+            Resource:
+              - !GetAtt UserLambda.Arn
+
+  UserResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: user
+      TypeName: Query
+      DataSourceName: !GetAtt UserDataSource.Name
