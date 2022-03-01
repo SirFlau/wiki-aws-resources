@@ -1,12 +1,11 @@
-import firebase_admin
-from firebase_admin import credentials, firestore
 import jwt
 from datetime import datetime, timedelta
+from firebase_helper import db_connection
+import os
+
 
 def lambda_handler(event, context):
-    cred = credentials.Certificate("./firebase_credentials.json")
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
+    db = db_connection.get_db_connection()
 
     request_user = event['arguments']['user']
 
@@ -31,5 +30,5 @@ def lambda_handler(event, context):
         "status": "Success",
         "token": jwt.encode({"expiration": (datetime.now() + timedelta(hours=3)).timestamp(),
                              "user": db_user[0].id
-                             }, "secret_key_123", algorithm="HS256")
+                             }, os.environ["JWTSECRET"], algorithm="HS256")
     }

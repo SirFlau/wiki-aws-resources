@@ -1,11 +1,8 @@
-import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_helper import db_connection
 
 
 def lambda_handler(event, context):
-    cred = credentials.Certificate("./firebase_credentials.json")
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
+    db = db_connection.get_db_connection()
 
     user = event['arguments']['user']
     existing_user = db.collection('User').where("email", "==", user["email"]).get()
@@ -15,3 +12,4 @@ def lambda_handler(event, context):
     db.collection('User').add(user)
 
     return "User added"
+
