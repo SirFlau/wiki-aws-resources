@@ -14,16 +14,10 @@ def lambda_handler(event, context):
 
     permissions = event["arguments"]["permissions"]
 
-    # check the account being updated is also the account logged into
-    if permissions["entityType"] == "Account":
-        if users_account.id != permissions["entity"]:
-            return "You do not have permissions to change permissions on this account"
-    # check the page being updated belongs to the account logged into
-    elif permissions["entityType"] == "Page":
-        page = db.collection("Page").document(permissions["entity"]).get().to_dict()
-        if page["account"] != token_data["account"]:
-            return "You do not have permissions to change permissions on this account"
+    db_permissions = db.collection("Permissions").where("user", "==", permissions["user"]).where("account", "==", token_data["account"]).where("entity", "==", permissions["entity"]).get()
+    if len(db_permissions) != 1:
+        return "Could not find permissions to update"
 
-    db.collection("Permissions").add(permissions)
+    db_permissions[0].update(permissions)
 
-    return "Permissions added"
+    return "Permissions updated"

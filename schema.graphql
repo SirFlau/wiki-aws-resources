@@ -3,16 +3,125 @@ schema {
     mutation: Mutation
 }
 type Query {
-    user(id: ID!): User
+    user(token: String, id: ID!): UserResponse
+    preTokenAccounts(login: InputLogin!): simpleAccountResponse
+    login(login: InputLogin!): LoginResponse
+    page(token: String!, id: ID!): PageResponse
+    pages(token: String!): PagesResponse
+    permissionSets(token: String!): PermissionSetsResponse
 }
+
 type Mutation {
-    createUser(user: CreateUser): String
+    createUser(user: InputUser!): String
+    createPage(token: String!, page: InputCreatePage!): String
+    updatePage(token: String!, page: InputUpdatePage!): String
+    deletePage(token: String!, id: ID!): String
+    addPermissionSet(token: String!, email: InputAddPermissionSet!): String
+    updatePermissionSet(token: String!, permissions: InputUpdatePermissionSet! ): String
 }
 type User {
     id: ID
     email: String
+    accounts: [ID]
 }
-input CreateUser {
+
+type simpleAccount {
+    id: ID
+    name: String
+}
+
+type Page {
+    id: ID
+    account: ID
+    name: String
+    parentPage: ID
+    childPages: [Page]
+    startPage: Boolean
+    content: String
+}
+
+type LoginResponse {
+    message: String
+    status: String!
+    token: String
+}
+
+type UserResponse {
+    message: String
+    status: String!
+    data: User
+}
+
+type PageResponse {
+    message: String
+    status: String!
+    data: Page
+}
+
+type PagesResponse {
+    message: String
+    status: String!
+    data: [Page]
+}
+
+type simpleAccountResponse {
+    message: String
+    status: String!
+    data: [simpleAccount]
+}
+
+type PermissionSetsResponse {
+    message: String
+    status: String!
+    data: [PermissionSet]
+}
+
+input InputUser {
     email: String!
     password: String!
+    accountName: String!
+}
+
+input InputLogin {
+    email: String!
+    password: String!
+    account: String
+}
+
+input InputCreatePage {
+    name: String!
+    parentPage: ID
+    content: String
+}
+
+input InputUpdatePage {
+    id: ID!
+    name: String
+    parentPage: ID
+    content: String
+}
+
+type PermissionSet {
+    user: ID,
+    entity: ID
+    read: Boolean,
+    write: Boolean
+    delete: Boolean
+}
+
+input InputAddPermissionSet {
+    email: String!
+    entity: ID!
+    entityType: String!
+    read: Boolean!
+    write: Boolean!
+    delete: Boolean!
+}
+
+input InputUpdatePermissionSet {
+    email: String!
+    entity: ID!
+    read: Boolean
+    write: Boolean
+    delete: Boolean
 }

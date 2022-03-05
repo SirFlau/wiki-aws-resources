@@ -1,11 +1,20 @@
 Transform: AWS::Serverless-2016-10-31
 
+Parameters:
+  JWTSecret:
+    Description: The Secret used to sign jwt tokens
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: JWTSecret
+
 Globals:
   Function:
     Timeout: 60
     Runtime: python3.9
+    Environment:
+      Variables:
+        JWTSECRET: !Ref JWTSecret
     Layers:
-      - arn:aws:lambda:eu-west-1:367899993810:layer:wiki-layer:6
+      - arn:aws:lambda:eu-west-1:367899993810:layer:wiki-layer:12
 
 Resources:
   GraphQLAPI:
@@ -25,27 +34,10 @@ Resources:
       ApiId: !GetAtt GraphQLAPI.ApiId
       DefinitionS3Location: s3://schema-and-resolvers/schema.graphql
 
-  #########
-  # User #
-  ########
-
-  UserLambda:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: Datasources/GetUser/
-      Handler: handler.lambda_handler
-
-  UserDataSource:
-    Type: AWS::AppSync::DataSource
-    Properties:
-      ApiId: !GetAtt GraphQLAPI.ApiId
-      Name: UserDataSource
-      Type: AWS_LAMBDA
-      LambdaConfig:
-        LambdaFunctionArn: !GetAtt UserLambda.Arn
-      ServiceRoleArn: !GetAtt UserDataRole.Arn
-
-  UserDataRole:
+  ################
+  # Permissions #
+  ##############
+  AppSyncRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -56,19 +48,49 @@ Resources:
             Principal:
               Service: appsync.amazonaws.com
 
-
-  UserDataPolicy:
+  AllowLambdaExecutionPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: UserDataPolicy
+      PolicyName: AllowLambdaExecutionPolicy
       Roles:
-        - !Ref UserDataRole
+        - !Ref AppSyncRole
       PolicyDocument:
         Statement:
           - Action: lambda:invokeFunction
             Effect: Allow
             Resource:
-              - !GetAtt UserLambda.Arn
+              - !GetAtt GetUserLambda.Arn
+              - !GetAtt LoginUserLambda.Arn
+              - !GetAtt CreateUserLambda.Arn
+              - !GetAtt ListPermissionsLambda.Arn
+              - !GetAtt AddPermissionsLambda.Arn
+              - !GetAtt UpdatePermissionsLambda.Arn
+              - !GetAtt ListPagesByAccountLambda.Arn
+              - !GetAtt ListPagesByPageLambda.Arn
+              - !GetAtt UpdatePageLambda.Arn
+              - !GetAtt GetPageLambda.Arn
+              - !GetAtt DeletePageLambda.Arn
+              - !GetAtt CreatePageLambda.Arn
+              - !GetAtt ListAccountsPreTokenLambda.Arn
+  #########
+  # User #
+  ########
+  # Get
+  GetUserLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/User/GetUser/
+      Handler: handler.lambda_handler
+
+  UserDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: UserDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt GetUserLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
 
   UserResolver:
     Type: AWS::AppSync::Resolver
@@ -77,3 +99,312 @@ Resources:
       FieldName: user
       TypeName: Query
       DataSourceName: !GetAtt UserDataSource.Name
+
+  # Login
+  LoginUserLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/User/LoginUser/
+      Handler: handler.lambda_handler
+
+  LoginDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: LoginDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt LoginUserLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  LoginUserResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: login
+      TypeName: Query
+      DataSourceName: !GetAtt LoginDataSource.Name
+
+  # Create User
+  CreateUserLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/User/CreateUser/
+      Handler: handler.lambda_handler
+
+  CreateUserDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: CreateUserDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt CreateUserLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  CreateUserResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: createUser
+      TypeName: Mutation
+      DataSourceName: !GetAtt CreateUserDataSource.Name
+
+  ################
+  # Permissions #
+  ##############
+  # List
+  ListPermissionsLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Permissions/ListPermissionsByUser/
+      Handler: handler.lambda_handler
+
+  ListPermissionsDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: ListPermissionsDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt ListPermissionsLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  ListPermissionsResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: permissionSets
+      TypeName: Query
+      DataSourceName: !GetAtt ListPermissionsDataSource.Name
+
+  # Add Permissions
+  AddPermissionsLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Permissions/AddPermissions/
+      Handler: handler.lambda_handler
+
+  AddPermissionsDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: AddPermissionsDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt AddPermissionsLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  AddPermissionsResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: addPermissionSet
+      TypeName: Mutation
+      DataSourceName: !GetAtt AddPermissionsDataSource.Name
+
+  # Update Permissions
+  UpdatePermissionsLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Permissions/UpdatePermissions/
+      Handler: handler.lambda_handler
+
+  UpdatePermissionsDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: UpdatePermissionsDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt UpdatePermissionsLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  UpdatePermissionsResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: updatePermissionSet
+      TypeName: Mutation
+      DataSourceName: !GetAtt UpdatePermissionsDataSource.Name
+
+  ##########
+  # Page #
+  ########
+  # List
+  ListPagesByAccountLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Page/ListPagesByAccount/
+      Handler: handler.lambda_handler
+
+  ListPagesByAccountDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: ListPagesByAccountDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt ListPagesByAccountLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  ListPagesByAccountResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: pages
+      TypeName: Query
+      DataSourceName: !GetAtt ListPagesByAccountDataSource.Name
+
+  # List by page, subquery
+  ListPagesByPageLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Page/ListPagesByPage/
+      Handler: handler.lambda_handler
+
+  ListPagesByPageDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: ListPagesByPageDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt ListPagesByPageLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  ListPagesByPageResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: childPages
+      TypeName: Page
+      DataSourceName: !GetAtt ListPagesByPageDataSource.Name
+
+  # Update page
+  UpdatePageLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Page/UpdatePage/
+      Handler: handler.lambda_handler
+
+  UpdatePageDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: UpdatePageDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt UpdatePageLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  UpdatePageResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: updatePage
+      TypeName: Mutation
+      DataSourceName: !GetAtt UpdatePageDataSource.Name
+
+  # Get Page
+  GetPageLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Page/GetPage/
+      Handler: handler.lambda_handler
+
+  GetPageDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: GetPageDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt GetPageLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  GetPageResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: page
+      TypeName: Query
+      DataSourceName: !GetAtt GetPageDataSource.Name
+
+  # Delete Page
+  DeletePageLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Page/DeletePage/
+      Handler: handler.lambda_handler
+
+  DeletePageDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: DeletePageDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt DeletePageLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  DeletePageResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: deletePage
+      TypeName: Mutation
+      DataSourceName: !GetAtt DeletePageDataSource.Name
+
+  # Create Page
+  CreatePageLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Page/CreatePage/
+      Handler: handler.lambda_handler
+
+  CreatePageDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: CreatePageDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt CreatePageLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  CreatePageResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: createPage
+      TypeName: Mutation
+      DataSourceName: !GetAtt CreatePageDataSource.Name
+
+  ############
+  # Account #
+  ##########
+  # List AccountsPreToken
+  ListAccountsPreTokenLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Datasources/Account/ListAccountsPreToken/
+      Handler: handler.lambda_handler
+
+  ListAccountsPreTokenDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      Name: ListAccountsPreTokenDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt ListAccountsPreTokenLambda.Arn
+      ServiceRoleArn: !GetAtt AppSyncRole.Arn
+
+  ListAccountsPreTokenResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt GraphQLAPI.ApiId
+      FieldName: preTokenAccounts
+      TypeName: Query
+      DataSourceName: !GetAtt ListAccountsPreTokenDataSource.Name
